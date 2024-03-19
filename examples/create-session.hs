@@ -1,7 +1,9 @@
 module Main where
 
-import Visa
+import qualified Visa.Session as RM
 
 main :: IO ()
 main = do
-    defaultSession
+    session <- RM.defaultSession
+    putStrLn ("Session: " ++ (show session))
+    RM.close session
