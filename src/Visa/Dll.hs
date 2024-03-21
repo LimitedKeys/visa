@@ -14,7 +14,7 @@ import Foreign.C.String
 -- Types
 type ViStatus = CInt
 
-type ViObject = CUInt -- This works? But CULong does not?
+type ViObject = CULong
 type ViSession = ViObject
 
 -- Functions
