@@ -19,3 +19,4 @@ close :: ViSession -> IO ()
 close session = do
     error <- dll_viClose session
     check error () "viClose"
+
