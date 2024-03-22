@@ -25,6 +25,7 @@ library
     exposed-modules:  Visa.Session
                       Visa.Dll
                       Visa.Status
+                      Visa.Attributes
 
     -- Modules included in this library but not exported.
     -- other-modules:

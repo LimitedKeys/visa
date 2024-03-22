@@ -25,7 +25,6 @@ type ViSession = ViObject
 type ViAttr    = ViUInt32
 
 -- Functions
-
 foreign import capi "visa.h viOpenDefaultRM"
     dll_viOpenDefaultRM :: Ptr (ViSession) -> IO (ViStatus)
 
