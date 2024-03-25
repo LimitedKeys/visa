@@ -1,7 +1,7 @@
-module Visa.Session (defaultSession
-                    ,close
-                    ,findResource
-                    ) where
+module Visa.Resources (defaultSession
+                      ,close
+                      ,findResource
+                      ) where
 
 import Foreign
 import Foreign.C.Types
