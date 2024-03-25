@@ -1,6 +1,6 @@
 module Main where
 
-import Visa.Session
+import Visa.Resources
 import Visa.Attributes
 
 main :: IO ()

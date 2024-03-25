@@ -22,7 +22,7 @@ maintainer:         richard.hoberecht@infineon.com
 extra-source-files: CHANGELOG.md
 
 library
-    exposed-modules:  Visa.Session
+    exposed-modules:  Visa.Resources
                       Visa.Dll
                       Visa.Status
                       Visa.Attributes
