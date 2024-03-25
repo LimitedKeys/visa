@@ -1,10 +1,11 @@
 module Visa.Session (defaultSession
                     ,close
-                    ,getAttribute
+                    ,findResource
                     ) where
 
 import Foreign
 import Foreign.C.Types
+import Foreign.C.String
 
 -- Local imports
 import Visa.Dll
@@ -12,28 +13,23 @@ import Visa.Status
 
 defaultSession :: IO (ViSession)
 defaultSession = alloca (\session -> do
-    error <- dll_viOpenDefaultRM session
+    error <- viOpenDefaultRM session
     value <- peek session
     check error value "viOpenDefaultRM")
 
 close :: ViSession -> IO ()
 close session = do
-    error <- dll_viClose session
+    error <- viClose session
     check error () "viClose"
 
--- Get Attributes 
---
--- This is tricky - attributes can be strings. 
--- There are only a few string attributes. The String will be 256 bytes long.
---
--- This (may) require a case statement, where the Special Case String ones can
--- be handled.
---
--- Move this to Attributes?
-getAttribute :: ViSession -> Integer -> IO (Integer)
-getAttribute session attr = alloca (\value -> do
-    let attr_c = fromInteger attr :: ViAttr
-    error <- dll_viGetAttribute session attr_c value
-    final <- peek (castPtr value) :: IO CUInt
-    putStrLn ("Value: " ++ (show final))
-    check error (toInteger final) "viGetAttribute")
+findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
+findResource session query = withCString query (\c_query -> 
+    allocaBytes 256 (\description -> 
+        alloca (\find_list -> 
+            alloca (\count -> do
+                error <- viFindRsrc session c_query find_list count description
+                total <- fmap toInteger (peek count)
+                find_session <- peek find_list
+                desc <- peekCString description
+                check error (find_session, desc, total) "viFindRsrc"
+                ))))

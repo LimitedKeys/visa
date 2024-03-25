@@ -1,6 +1,11 @@
 {-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
 
-module Visa.Attributes (vi_attr_rsrc_class
+module Visa.Attributes (getAttribute
+                       ,getAttributeString
+                       ,getAttributeVersion
+
+                       -- Attributes
+                       ,vi_attr_rsrc_class
                        ,vi_attr_rsrc_name
                        ,vi_attr_rsrc_impl_version
                        ,vi_attr_rsrc_lock_state
@@ -171,9 +176,44 @@ module Visa.Attributes (vi_attr_rsrc_class
                        ,vi_attr_pxi_recv_intr_data
                        ) where
 
+import Foreign
+import Foreign.C.Types
+import Foreign.C.String
+
+import Data.Bits
+
+-- Local imports
+import Visa.Dll
+import Visa.Status
+
+-- Get Attributes 
+getAttribute:: ViSession -> Integer -> IO (Integer)
+getAttribute session attr = alloca (\value -> do
+    let attr_c = fromInteger attr :: ViAttr
+    error <- viGetAttribute session attr_c value
+    final <- peek (castPtr value) :: IO CUInt
+    check error (toInteger final) "viGetAttribute")
+
+getAttributeString :: ViSession -> Integer -> IO (String)
+getAttributeString session attr = allocaBytes 256 (\buffer -> do
+    let attr_c = fromInteger attr :: ViAttr
+    error <- viGetAttribute session attr_c buffer
+    result <- peekCString (castPtr buffer)
+    check error result "viGetAttribute")
+
+getAttributeVersion :: ViSession -> Integer -> IO (Integer, Integer, Integer)
+getAttributeVersion session attr = do
+    value <- fmap fromInteger (getAttribute session attr)
+    let major = shiftR (value .&. 0xFFF00000) 20
+    let minor = shiftR (value .&. 0x000FFF00) 8
+    let sub_minor = (value .&. 0x00000FFF)
+    return (major, minor, sub_minor)
+
+-- Attributes
+
 vi_attr_rsrc_class = 0xbfff0001
 vi_attr_rsrc_name = 0xbfff0002
-vi_attr_rsrc_impl_version = 0x3fff0003
+vi_attr_rsrc_impl_version = 0x3fff0003 -- 0xFFF Majro 0xFFF Minor 0xFF Sub Minor
 vi_attr_rsrc_lock_state = 0x3fff0004
 vi_attr_max_queue_length = 0x3fff0005
 vi_attr_user_data_32 = 0x3fff0007
