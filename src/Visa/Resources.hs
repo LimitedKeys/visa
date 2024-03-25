@@ -1,6 +1,7 @@
 module Visa.Resources (defaultSession
                       ,close
                       ,findResource
+                      ,findNext
                       ) where
 
 import Foreign
@@ -17,9 +18,9 @@ defaultSession = alloca (\session -> do
     value <- peek session
     check error value "viOpenDefaultRM")
 
-close :: ViSession -> IO ()
-close session = do
-    error <- viClose session
+close :: ViObject -> IO ()
+close obj = do
+    error <- viClose obj 
     check error () "viClose"
 
 findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
@@ -33,3 +34,13 @@ findResource session query = withCString query (\c_query ->
                 desc <- peekCString description
                 check error (find_session, desc, total) "viFindRsrc"
                 ))))
+
+findNext :: ViFindList -> IO (String)
+findNext find_session = allocaBytes 256 (\description -> do
+    error <- viFindNext find_session description
+    desc <- peekCString description
+    check error desc "viFindNext")
+
+-- Find all attached devices based on the query, and return a list
+-- find :: ViSession -> String -> IO ([String])
+-- find session query = do

@@ -11,6 +11,7 @@ module Visa.Dll (ViStatus
                 ,viClose
                 ,viGetAttribute
                 ,viFindRsrc
+                ,viFindNext
                 ) where
 
 import Foreign
@@ -18,17 +19,17 @@ import Foreign.C.Types
 import Foreign.C.String
 
 -- Types
-type ViStatus = CInt
+type ViStatus      = CInt
 
-type ViUInt32 = CULong
+type ViUInt32      = CULong
 
-type ViObject  = ViUInt32
-type ViSession = ViObject
-type ViAttr    = ViUInt32
+type ViObject      = ViUInt32
+type ViSession     = ViObject
+type ViFindList    = ViObject
 
-type ViChar = CString
+type ViAttr        = ViUInt32
+type ViChar        = CString
 type ViConstString = CString
-type ViFindList = ViUInt32
 
 -- Resource Management
 
@@ -46,3 +47,5 @@ foreign import capi "visa.h viGetAttribute"
 foreign import capi "visa.h viFindRsrc"
     viFindRsrc :: ViSession -> ViConstString -> Ptr (ViFindList) -> Ptr (ViUInt32) -> ViChar -> IO (ViStatus)
 
+foreign import capi "visa.h viFindNext"
+    viFindNext :: ViFindList -> ViChar -> IO (ViStatus)
