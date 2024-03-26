@@ -2,7 +2,7 @@
 
 module Visa.Status (check) where
 
-import Visa.Dll
+import Visa.Dll.Visa
 
 import Control.Exception (throwIO)
 

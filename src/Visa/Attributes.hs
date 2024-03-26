@@ -10,7 +10,7 @@ import Foreign.C.String
 import Data.Bits
 
 -- Local imports
-import Visa.Dll
+import Visa.Dll.Visa
 import Visa.Status
 
 -- Get Attributes 

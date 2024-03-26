@@ -9,8 +9,8 @@ import Foreign.C.String
 
 import Data.Foldable (foldrM)
 
-import Visa.Dll
 import Visa.Status
+import Visa.Dll.Visa
 
 -- TODO withSession + bracket
 

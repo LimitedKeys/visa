@@ -1,18 +1,6 @@
 {-# LANGUAGE CPP, CApiFFI, ForeignFunctionInterface #-}
 
-module Visa.Dll (ViStatus
-                ,ViObject
-                ,ViSession
-                ,ViAttr
-                ,ViFindList
-
-                -- Functions
-                ,viOpenDefaultRM
-                ,viClose
-                ,viGetAttribute
-                ,viFindRsrc
-                ,viFindNext
-                ) where
+module Visa.Dll.Visa where
 
 import Foreign
 import Foreign.C.Types
