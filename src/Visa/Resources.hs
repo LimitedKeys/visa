@@ -1,6 +1,13 @@
 module Visa.Resources (defaultSession
                       ,close
                       ,find
+
+                      ,parseResource
+                      ,parseResourceEx
+
+                      ,open
+                      ,AccessMode(..)
+                      ,InterfaceType(..)
                       ) where
 
 import Foreign
@@ -13,6 +20,9 @@ import Visa.Status
 import Visa.Dll.Visa
 
 -- TODO withSession + bracket
+
+vi_char_buffer_size :: Int
+vi_char_buffer_size = 256 -- bytes
 
 defaultSession :: IO (ViSession)
 defaultSession = alloca (\session -> do
@@ -53,7 +63,7 @@ find session query = do
 -- Internal Only
 findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
 findResource session query = withCString query (\c_query -> 
-    allocaBytes 256 (\description -> 
+    allocaBytes vi_char_buffer_size (\description -> 
         alloca (\find_list -> 
             alloca (\count -> do
                 error <- viFindRsrc session c_query find_list count description
@@ -64,7 +74,7 @@ findResource session query = withCString query (\c_query ->
                 ))))
 
 findNext :: ViFindList -> IO (String)
-findNext find_session = allocaBytes 256 (\description -> do
+findNext find_session = allocaBytes vi_char_buffer_size (\description -> do
     error <- viFindNext find_session description
     desc <- peekCString description
     check error desc "viFindNext")
@@ -75,3 +85,76 @@ _find fs r = foldrM x [] [0..r]
             desc <- findNext fs
             return $ (desc:a)
 
+data InterfaceType = RESERVED_INTERFACE_TYPE 
+                   | GPIB
+                   | VXI
+                   | GPIB_VXI
+                   | ASRL
+                   | PXI
+                   | TCPIP
+                   | RIO
+                   | FIREWIRE deriving (Enum, Eq, Show)
+
+-- Get some information about the resource
+--
+-- Args:
+--   session -> Session from `defaultSession`
+--   name -> resource name from `find`
+--
+-- Returns:
+--   (InterfaceType, interface_board_number)
+--
+parseResource :: ViSession -> String -> IO (InterfaceType, Integer)
+parseResource session name = withCString name (\c_name ->
+    alloca (\c_it ->
+        alloca (\c_ibn-> do
+            error <- viParseRsrc session c_name c_it c_ibn
+            interface_type <- fmap (toEnum . fromIntegral) (peek c_it)
+            interface_board_number <- fmap toInteger (peek c_ibn)
+            check error (interface_type, interface_board_number) "viParseRsrc")))
+
+-- Get more information about the resource
+--
+-- Args:
+--   session -> Session from `defaultSession`
+--   name -> resource name from `find`
+--
+-- Returns:
+--   (interface_type, interface_board_number, Resource class, Expanded Resource name, Alias)
+parseResourceEx :: ViSession -> String -> IO (InterfaceType, Integer, String, String, String)
+parseResourceEx session name = withCString name (\c_name ->
+    alloca (\c_it ->
+        alloca (\c_ibn -> 
+            allocaBytes vi_char_buffer_size (\c_rsrc_name -> 
+                allocaBytes vi_char_buffer_size (\c_rsrc_name_ex -> 
+                    allocaBytes vi_char_buffer_size (\c_alias -> do
+                        error <- viParseRsrcEx session c_name c_it c_ibn c_rsrc_name c_rsrc_name_ex c_alias
+                        interface_type <- fmap (toEnum . fromIntegral) (peek c_it)
+                        interface_board_number <- fmap toInteger (peek c_ibn)
+                        resource_name <- peekCString c_rsrc_name
+                        resource_name_ex <- peekCString c_rsrc_name_ex
+                        alias <- peekCString c_alias
+                        check error (interface_type, interface_board_number, resource_name, resource_name_ex, alias) "viParseRsrc"))))))
+
+data AccessMode = NO_LOCK
+                | EXCLUSIVE_LOCK 
+                | SHARED_LOCK deriving (Show, Eq, Enum)
+
+-- Open the specified Resource
+--
+-- Args:
+--   session -> Session from `defaultSession`
+--   name -> resource name from `find`
+--   access -> Access Mode (NO_LOCK, EXCLUSIVE_LOCK, SHARED_LOCK). A good Default is NO_LOCK
+--   timeout -> Resource Access Timeout in ms. A good default is 2000 (ms)
+--
+-- Returns:
+--   Resource Session
+open :: ViSession -> String -> AccessMode -> Integer -> IO (ViSession)
+open session name access timeout = withCString name (\c_name -> 
+    alloca (\c_resource -> do
+        let c_access = fromIntegral (fromEnum access) :: ViAccessMode
+        let c_timeout = (fromInteger timeout) :: ViUInt32
+        error <- viOpen session c_name c_access c_timeout c_resource
+        resource <- peek c_resource
+        check error resource "viOpen"))
