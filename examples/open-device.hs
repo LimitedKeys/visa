@@ -5,6 +5,7 @@ import Visa.Resources
 import Control.Monad (mapM_)
 
 -- Bracket ...
+-- Allow device to be specified from CLI String (to work with list exe)
 
 main :: IO ()
 main = do
@@ -19,9 +20,10 @@ main = do
         putStrLn "Devices"
         mapM_ (\a -> putStrLn (" " ++ a)) devices
 
-        -- Open the First Device
-        first_device <- head devices
-        putStrLn ("Openning the first device: " ++ first_device)
+        -- Open the Device
+        -- first_device <- head devices
+        first_device = "GPIB0::10::INSTR"
+        putStrLn ("Openning " ++ first_device)
 
         device <- open sesion first_device NO_LOCK 2000
 

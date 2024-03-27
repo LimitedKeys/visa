@@ -1,3 +1,5 @@
+{-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
+
 module Visa.Resources (defaultSession
                       ,close
                       ,find
@@ -13,6 +15,10 @@ module Visa.Resources (defaultSession
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
+import Foreign.Marshal.Array (peekArray)
+
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
 
 import Data.Foldable (foldrM)
 
@@ -160,6 +166,9 @@ open session name access timeout = withCString name (\c_name ->
         resource <- peek c_resource
         check error resource "viOpen"))
 
+success_max_count_read :: ViStatus
+success_max_count_read = 0x3FFF0006
+
 -- Read Raw
 --
 -- This function calls `viRead` until the status is not "Success Max Count Read"
@@ -170,13 +179,31 @@ open session name access timeout = withCString name (\c_name ->
 --
 -- Returns:
 --   Read bytes
--- readRaw :: ViSession -> Integer -> IO (String)
--- readRaw resource size = allocaBytes size (\buffer -> 
---     alloca (\return_count -> do
---         status <- viRead session buffer return_count
---         length <- peek return_count
---         chunk <- peekCStringLen (buffer, length)
---         if status == SUCCESS_MAX_COUNT_READ
---         then (return chuck:(readRaw resource size))
---         else (return [])
---         ))
+readBytes :: ViSession -> Integer -> IO B.ByteString
+readBytes resource size = let size_int = fromIntegral size in
+    allocaBytes size_int (\buffer -> 
+        alloca (\return_count -> do
+            let size_c = fromIntegral size :: ViUInt32
+
+            status <- viRead resource buffer size_c return_count
+            length <- fmap fromIntegral $ peek return_count
+            chunk_bs <- B.packCStringLen ((castPtr buffer), length)
+
+            if status == success_max_count_read
+            then do
+                c2 <- readBytes resource size
+                (return $ B.append chunk_bs c2)
+            else (return B.empty)
+            ))
+
+-- Read a String 
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--
+-- Returns:
+--   Response as a String
+readString :: ViSession -> IO String
+readString resource = do
+    bytes <- readBytes resource 2048
+    return (BC.unpack bytes)
