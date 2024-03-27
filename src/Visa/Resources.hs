@@ -77,10 +77,11 @@ findNext :: ViFindList -> IO (String)
 findNext find_session = allocaBytes vi_char_buffer_size (\description -> do
     error <- viFindNext find_session description
     desc <- peekCString description
+    -- Check the error 
     check error desc "viFindNext")
             
 -- Find the remainind devices using `findNext`
-_find fs r = foldrM x [] [0..r]
+_find fs r = foldrM x [] [1..r]
     where x _ a = do
             desc <- findNext fs
             return $ (desc:a)
@@ -158,3 +159,24 @@ open session name access timeout = withCString name (\c_name ->
         error <- viOpen session c_name c_access c_timeout c_resource
         resource <- peek c_resource
         check error resource "viOpen"))
+
+-- Read Raw
+--
+-- This function calls `viRead` until the status is not "Success Max Count Read"
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--   size -> Number of bytes to read. Default from PyVisa is 2048
+--
+-- Returns:
+--   Read bytes
+-- readRaw :: ViSession -> Integer -> IO (String)
+-- readRaw resource size = allocaBytes size (\buffer -> 
+--     alloca (\return_count -> do
+--         status <- viRead session buffer return_count
+--         length <- peek return_count
+--         chunk <- peekCStringLen (buffer, length)
+--         if status == SUCCESS_MAX_COUNT_READ
+--         then (return chuck:(readRaw resource size))
+--         else (return [])
+--         ))
