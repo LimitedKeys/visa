@@ -24,6 +24,8 @@ type ViChar        = CString
 type ViConstString = CString
 type ViConstRsrc   = CString
 
+#ifndef TEST
+
 foreign import capi "visa.h viOpenDefaultRM"
     viOpenDefaultRM :: Ptr (ViSession) -> IO (ViStatus)
 foreign import capi "visa.h viClose"
@@ -40,15 +42,27 @@ foreign import capi "visa.h viParseRsrcEx"
     viParseRsrcEx :: ViSession -> ViConstRsrc -> Ptr (ViUInt16) -> Ptr (ViUInt16) -> ViChar -> ViChar -> ViChar -> IO (ViStatus)
 foreign import capi "visa.h viOpen"
     viOpen :: ViSession -> ViConstRsrc -> ViAccessMode -> ViUInt32 -> Ptr (ViSession) -> IO (ViStatus)
-
--- ViStatus _VI_FUNC  viRead          (ViSession vi, ViPBuf buf, ViUInt32 cnt, ViPUInt32 retCnt);
 foreign import capi "visa.h viRead"
     viRead :: ViSession -> Ptr (ViByte) -> ViUInt32 -> Ptr (ViUInt32) -> IO (ViStatus)
-
--- ViStatus _VI_FUNC  viWrite         (ViSession vi, ViConstBuf  buf, ViUInt32 cnt, ViPUInt32 retCnt);
 foreign import capi "visa.h viWrite"
     viWrite :: ViSession -> Ptr (ViByte) -> ViUInt32 -> Ptr (ViUInt32) -> IO (ViStatus)
-
--- ViStatus _VI_FUNC  viStatusDesc    (ViObject vi, ViStatus status, ViChar _VI_FAR desc[]);
 foreign import capi "visa.h viStatusDesc"
     viStatusDesc :: ViObject -> ViStatus -> ViChar -> IO (ViStatus)
+
+#else -- defined TEST
+
+test_session :: ViSession
+test_session = 1234
+
+test_status :: ViStatus
+test_status = 0
+
+viOpenDefaultRM :: Ptr (ViSession) -> IO (ViStatus)
+viOpenDefaultRM p_session = do
+    poke p_session test_session
+    return test_status
+
+viClose :: ViSession -> IO (ViStatus)
+viClose session = return test_status
+
+#endif
