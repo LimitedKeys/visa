@@ -7,7 +7,16 @@ module Visa.Resources (defaultSession
                       ,parseResource
                       ,parseResourceEx
 
+                      ,openResource
                       ,open
+
+                      ,readBytes
+                      ,readString
+                      ,writeBytes
+                      ,writeString
+                      ,write
+                      ,query
+
                       ,AccessMode(..)
                       ,InterfaceType(..)
                       ) where
@@ -33,7 +42,7 @@ defaultSession :: IO (ViSession)
 defaultSession = alloca (\session -> do
     error <- viOpenDefaultRM session
     value <- peek session
-    check error value "viOpenDefaultRM")
+    checkDetails value error value "viOpenDefaultRM")
 
 close :: ViObject -> IO ()
 close obj = do
@@ -65,7 +74,6 @@ find session query = do
             close find_session
             return ([description] ++ others)
 
--- Internal Only
 findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
 findResource session query = withCString query (\c_query -> 
     allocaBytes vi_char_buffer_size (\description -> 
@@ -75,7 +83,7 @@ findResource session query = withCString query (\c_query ->
                 total <- fmap toInteger (peek count)
                 find_session <- peek find_list
                 desc <- peekCString description
-                check error (find_session, desc, total) "viFindRsrc"
+                checkDetails session error (find_session, desc, total) "viFindRsrc"
                 ))))
 
 findNext :: ViFindList -> IO (String)
@@ -83,7 +91,7 @@ findNext find_session = allocaBytes vi_char_buffer_size (\description -> do
     error <- viFindNext find_session description
     desc <- peekCString description
     -- Check the error 
-    check error desc "viFindNext")
+    checkDetails find_session error desc "viFindNext")
             
 -- Find the remainind devices using `findNext`
 _find fs r = foldrM x [] [1..r]
@@ -117,7 +125,7 @@ parseResource session name = withCString name (\c_name ->
             error <- viParseRsrc session c_name c_it c_ibn
             interface_type <- fmap (toEnum . fromIntegral) (peek c_it)
             interface_board_number <- fmap toInteger (peek c_ibn)
-            check error (interface_type, interface_board_number) "viParseRsrc")))
+            checkDetails session error (interface_type, interface_board_number) "viParseRsrc")))
 
 -- Get more information about the resource
 --
@@ -140,7 +148,7 @@ parseResourceEx session name = withCString name (\c_name ->
                         resource_name <- peekCString c_rsrc_name
                         resource_name_ex <- peekCString c_rsrc_name_ex
                         alias <- peekCString c_alias
-                        check error (interface_type, interface_board_number, resource_name, resource_name_ex, alias) "viParseRsrc"))))))
+                        checkDetails session error (interface_type, interface_board_number, resource_name, resource_name_ex, alias) "viParseRsrc"))))))
 
 data AccessMode = NO_LOCK
                 | EXCLUSIVE_LOCK 
@@ -156,14 +164,28 @@ data AccessMode = NO_LOCK
 --
 -- Returns:
 --   Resource Session
-open :: ViSession -> String -> AccessMode -> Integer -> IO (ViSession)
-open session name access timeout = withCString name (\c_name -> 
+openResource :: ViSession -> String -> AccessMode -> Integer -> IO (ViSession)
+openResource session name access timeout = withCString name (\c_name -> 
     alloca (\c_resource -> do
         let c_access = fromIntegral (fromEnum access) :: ViAccessMode
         let c_timeout = (fromInteger timeout) :: ViUInt32
         error <- viOpen session c_name c_access c_timeout c_resource
         resource <- peek c_resource
-        check error resource "viOpen"))
+        checkDetails session error resource "viOpen"))
+
+-- Open the specified Resource with Access Mode NO_LOCK
+--
+-- This is a version of `openResource` just using the default access mode
+--
+-- Args:
+--   session -> Session from `defaultSession`
+--   name -> resource name from `find`
+--   timeout -> Resource Access Timeout in ms. A good default is 2000 (ms)
+--
+-- Returns:
+--   Resource Session
+open :: ViSession -> String -> Integer -> IO (ViSession)
+open session name timeout = openResource session name NO_LOCK timeout
 
 success_max_count_read :: ViStatus
 success_max_count_read = 0x3FFF0006
@@ -211,7 +233,7 @@ readString resource = do
 --
 -- Args:
 --   resource -> Opened resource session (from `open`)
---   size -> Number of bytes to read. Default from PyVisa is 2048
+--   bytes -> Bytestring to write to the resource
 --
 -- Returns:
 --   Number of Bytes written to the Device
@@ -222,12 +244,37 @@ writeBytes resource bytes = alloca (\bytes_written ->
         let c_len = fromIntegral length :: ViUInt32
         error <- viWrite resource c_bytes c_len bytes_written
         written <- fmap toInteger $ peek bytes_written
-        check error written "viWRite"))
+        checkDetails resource error written "viWRite"))
 
 -- Write the provided string to the Visa Resource
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--   message -> Message to send
+--
+-- Returns:
+--   Number of Bytes written to the Device
 writeString :: ViSession -> String -> IO (Integer)
 writeString resource message = writeBytes resource (BC.pack message)
 
+-- Write the provided string to the Visa Resource
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--   message -> Message to send
+--
+-- Returns:
+--   Number of Bytes written to the Device
+write = writeString
+
+-- Write a message to the Visa Resource, and read the response
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--   message -> Message to send
+--
+-- Returns:
+--   Response 
 query :: ViSession -> String -> IO (String)
 query resource message = do
     writeString resource message

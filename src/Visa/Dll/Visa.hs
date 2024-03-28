@@ -48,3 +48,7 @@ foreign import capi "visa.h viRead"
 -- ViStatus _VI_FUNC  viWrite         (ViSession vi, ViConstBuf  buf, ViUInt32 cnt, ViPUInt32 retCnt);
 foreign import capi "visa.h viWrite"
     viWrite :: ViSession -> Ptr (ViByte) -> ViUInt32 -> Ptr (ViUInt32) -> IO (ViStatus)
+
+-- ViStatus _VI_FUNC  viStatusDesc    (ViObject vi, ViStatus status, ViChar _VI_FAR desc[]);
+foreign import capi "visa.h viStatusDesc"
+    viStatusDesc :: ViObject -> ViStatus -> ViChar -> IO (ViStatus)

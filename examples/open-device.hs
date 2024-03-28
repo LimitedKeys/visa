@@ -22,10 +22,10 @@ main = do
 
         -- Open the Device
         -- first_device <- head devices
-        first_device = "GPIB0::10::INSTR"
+        let first_device = "GPIB0::10::INSTR"
         putStrLn ("Openning " ++ first_device)
 
-        device <- open sesion first_device NO_LOCK 2000
+        device <- open session first_device 2000
 
         -- Query the device ID
         putStrLn "> *IDN?"

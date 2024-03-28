@@ -1,10 +1,15 @@
 {-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
 
-module Visa.Status (check) where
+module Visa.Status (check, checkDetails) where
 
-import Visa.Dll.Visa
+
+import Foreign
+import Foreign.C.Types
+import Foreign.C.String
 
 import Control.Exception (throwIO)
+
+import Visa.Dll.Visa
 
 vi_success = 0
 vi_success_event_en = 0x3fff0002
@@ -124,17 +129,28 @@ success = [vi_success_event_en
           ,vi_success_nested_exclusive
           ,vi_success_sync]
 
--- TODO: Look up the Error?
--- TODO: What do we do about warnings?
+message name status description = (name ++ " Error: " ++ (show status) ++ description)
 
-message name status = (name ++ " Error: " ++ (show status))
+description :: ViObject -> ViStatus -> IO (String)
+description session status = allocaBytes 256 (\buffer -> do
+    error <- viStatusDesc session status buffer 
+    if error == 0x0
+    then peekCString buffer
+    else return "Could not get description (viStatusDesc)")
+
+checkDetails session status value name = if (status == 0x0)
+    then return value 
+    else do
+        -- TODO Check if status is in `success` list
+        desc <- description session status
+        throwIO (userError (message name status desc))
 
 check status value name = if (status == 0x0)
     then return value 
-    else throwIO (userError (message name status))
+    else throwIO (userError (message name status ""))
 
 _check status value name = if (status == vi_success)
     then return value 
     else if any (status ==) success 
         then return value
-        else throwIO (userError (message name status))
+        else throwIO (userError (message name status ""))
