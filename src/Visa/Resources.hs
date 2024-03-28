@@ -15,7 +15,6 @@ module Visa.Resources (defaultSession
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
-import Foreign.Marshal.Array (peekArray)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -207,3 +206,29 @@ readString :: ViSession -> IO String
 readString resource = do
     bytes <- readBytes resource 2048
     return (BC.unpack bytes)
+
+-- Write Bytes to the Visa Resourece
+--
+-- Args:
+--   resource -> Opened resource session (from `open`)
+--   size -> Number of bytes to read. Default from PyVisa is 2048
+--
+-- Returns:
+--   Number of Bytes written to the Device
+writeBytes :: ViSession -> B.ByteString -> IO (Integer)
+writeBytes resource bytes = alloca (\bytes_written -> 
+    B.useAsCStringLen bytes (\(c_string, length) -> do
+        let c_bytes = castPtr c_string
+        let c_len = fromIntegral length :: ViUInt32
+        error <- viWrite resource c_bytes c_len bytes_written
+        written <- fmap toInteger $ peek bytes_written
+        check error written "viWRite"))
+
+-- Write the provided string to the Visa Resource
+writeString :: ViSession -> String -> IO (Integer)
+writeString resource message = writeBytes resource (BC.pack message)
+
+query :: ViSession -> String -> IO (String)
+query resource message = do
+    writeString resource message
+    readString resource
