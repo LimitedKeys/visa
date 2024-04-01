@@ -49,7 +49,7 @@ foreign import capi "visa.h viWrite"
 foreign import capi "visa.h viStatusDesc"
     viStatusDesc :: ViObject -> ViStatus -> ViChar -> IO (ViStatus)
 
-#else -- defined TEST
+#else
 
 test_session :: ViSession
 test_session = 1234

@@ -1,5 +1,3 @@
-{-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
-
 module Visa.Resources (defaultSession
                       ,close
                       ,find
@@ -214,7 +212,7 @@ readBytes resource size = let size_int = fromIntegral size in
             then do
                 c2 <- readBytes resource size
                 (return $ B.append chunk_bs c2)
-            else (return B.empty)
+            else return chunk_bs
             ))
 
 -- Read a String 
@@ -227,7 +225,8 @@ readBytes resource size = let size_int = fromIntegral size in
 readString :: ViSession -> IO String
 readString resource = do
     bytes <- readBytes resource 2048
-    return (BC.unpack bytes)
+    let result = BC.unpack bytes
+    return result
 
 -- Write Bytes to the Visa Resourece
 --
@@ -238,13 +237,14 @@ readString resource = do
 -- Returns:
 --   Number of Bytes written to the Device
 writeBytes :: ViSession -> B.ByteString -> IO (Integer)
-writeBytes resource bytes = alloca (\bytes_written -> 
-    B.useAsCStringLen bytes (\(c_string, length) -> do
-        let c_bytes = castPtr c_string
-        let c_len = fromIntegral length :: ViUInt32
-        error <- viWrite resource c_bytes c_len bytes_written
-        written <- fmap toInteger $ peek bytes_written
-        checkDetails resource error written "viWRite"))
+writeBytes resource bytes = do
+    alloca (\bytes_written -> 
+        B.useAsCStringLen bytes (\(c_string, length) -> do
+            let c_bytes = castPtr c_string
+            let c_len = fromIntegral length :: ViUInt32
+            error <- viWrite resource c_bytes c_len bytes_written
+            written <- fmap toInteger $ peek bytes_written
+            checkDetails resource error written "viWRite"))
 
 -- Write the provided string to the Visa Resource
 --
@@ -255,7 +255,8 @@ writeBytes resource bytes = alloca (\bytes_written ->
 -- Returns:
 --   Number of Bytes written to the Device
 writeString :: ViSession -> String -> IO (Integer)
-writeString resource message = writeBytes resource (BC.pack message)
+writeString resource message = do
+    writeBytes resource (BC.pack message)
 
 -- Write the provided string to the Visa Resource
 --
