@@ -1,23 +1,4 @@
-module Visa.Resources (defaultSession
-                      ,close
-                      ,find
-
-                      ,parseResource
-                      ,parseResourceEx
-
-                      ,openResource
-                      ,open
-
-                      ,readBytes
-                      ,readString
-                      ,writeBytes
-                      ,writeString
-                      ,write
-                      ,query
-
-                      ,AccessMode(..)
-                      ,InterfaceType(..)
-                      ) where
+module Visa.Resources where
 
 import Foreign
 import Foreign.C.Types
@@ -36,11 +17,14 @@ import Visa.Dll.Visa
 vi_char_buffer_size :: Int
 vi_char_buffer_size = 256 -- bytes
 
-defaultSession :: IO (ViSession)
-defaultSession = alloca (\session -> do
-    error <- viOpenDefaultRM session
+_defaultSession :: (Ptr (ViSession) -> IO (ViStatus)) -> String -> IO (ViSession)
+_defaultSession f name = alloca (\session -> do
+    error <- f session
     value <- peek session
-    checkDetails value error value "viOpenDefaultRM")
+    checkDetails value error value name)
+
+defaultSession :: IO (ViSession)
+defaultSession = _defaultSession viOpenDefaultRM "viOpenDefaultRM"
 
 close :: ViObject -> IO ()
 close obj = do

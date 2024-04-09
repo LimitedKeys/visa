@@ -1,16 +1,18 @@
 {-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
 
-module Visa.Status (check, checkDetails) where
-
+module Visa.Status (check, checkDetails, ViError, statusToError) where
 
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
 
-import Control.Exception (throwIO)
+import Data.Maybe
+import Data.Typeable (Typeable)
+import Control.Exception (throwIO, Exception)
 
 import Visa.Dll.Visa
 
+-- Error Constants from visa.h
 vi_success = 0
 vi_success_event_en = 0x3fff0002
 vi_success_event_dis = 0x3fff0003
@@ -116,18 +118,197 @@ vi_error_conn_lost = (vi_error+0x3fff00a6)
 vi_error_machine_navail = (vi_error+0x3fff00a7)
 vi_error_npermission = (vi_error+0x3fff00a8)
 
-success = [vi_success_event_en
-          ,vi_success_event_dis
-          ,vi_success_queue_empty
-          ,vi_success_term_char
-          ,vi_success_max_cnt
-          ,vi_success_dev_npresent
-          ,vi_success_trig_mapped
-          ,vi_success_queue_nempty
-          ,vi_success_nchain
-          ,vi_success_nested_shared
-          ,vi_success_nested_exclusive
-          ,vi_success_sync]
+data ViError = ViError String
+             | ViErrorSystemError String
+             | ViErrorInvalidObject String
+             | ViErrorResourceLocked String
+             | ViErrorInvalidExpression String
+             | ViErrorResourceNotFound String
+             | ViErrorInvalidResourceName String
+             | ViErrorInvalidAccessMode String
+             | ViErrorTMO String
+             | ViErrorClosingFailed String
+             | ViErrorInvalidDegree String
+             | ViErrorJobID String
+             | ViErrorNotSupportedAttribute String
+             | ViErrorNotSupportedAttributeState String
+             | ViErrorAttributeReadOnly String
+             | ViErrorInvalidLockType String
+             | ViErrorInvalidAccessKey String
+             | ViErrorInvalidEvent String
+             | ViErrorInvalidMech String
+             | ViErrorHandlerNotInstalled String
+             | ViErrorInvalidHandlerReference String
+             | ViErrorInvalidContext String
+             | ViErrorQueueOverflow String
+             | ViErrorNotEnabled String
+             | ViErrorAbort String
+             | ViErrorRawWriteProtectionViolation String
+             | ViErrorRawReadProtectionViolation String
+             | ViErrorOutPointerProtectionViolation String
+             | ViErrorInPointerProtectionViolation String
+             | ViErrorBErr String
+             | ViErrorInProgress String
+             | ViErrorInvalidSetup String
+             | ViErrorQueueError String
+             | ViErrorAlloc String
+             | ViErrorInvalidMask String
+             | ViErrorIO String
+             | ViErrorInvalidFormat String
+             | ViErrorNotSupportedFormat String
+             | ViErrorLineInUse String
+             | ViErrorLineNotReserved String
+             | ViErrorNotSupportedMode String
+             | ViErrorSRQNotOccurred String
+             | ViErrorInvalidSpace String
+             | ViErrorInvalidOffset String
+             | ViErrorInvalidWidth String
+             | ViErrorNotSupportedOffset String
+             | ViErrorNotSupportedVarWidth String
+             | ViErrorWindowNotMapped String
+             | ViErrorResponsePending String
+             | ViErrorNListeners String
+             | ViErrorNCIC String
+             | ViErrorNSYSController String
+             | ViErrorNotSupportedOperation String
+             | ViErrorIntrPending String
+             | ViErrorASRLParity String
+             | ViErrorASRLFraming String
+             | ViErrorASRLOverrun String
+             | ViErrorTriggerNotMapped String
+             | ViErrorNotSupportedAlignOffset String
+             | ViErrorUserBuffer String
+             | ViErrorResourceBusy String
+             | ViErrorNotSupportedWidth String
+             | ViErrorInvalidParameter String
+             | ViErrorInvalidProtection String
+             | ViErrorInvalidSize String
+             | ViErrorWindowMapped String
+             | ViErrorNotImplementedOperation String
+             | ViErrorInvalidLength String
+             | ViErrorInvalidMode String
+             | ViErrorSessionNotLocked String
+             | ViErrorMemoryNotShared String
+             | ViErrorLibraryNotFound String
+             | ViErrorNotSupportedIntr String
+             | ViErrorInvalidLine String
+             | ViErrorFileAccess String
+             | ViErrorFileIO String
+             | ViErrorNotSupportedLine String
+             | ViErrorNotSupportedMech String
+             | ViErrorIntfNumNConfig String
+             | ViErrorConnectionLost String
+             | ViErrorMachineNotAvailable String
+             | ViErrorNoPermission String
+             deriving (Show)
+
+instance Exception ViError 
+
+statusToError :: ViStatus -> String -> Maybe ViError
+statusToError status message 
+    | status == vi_success = Nothing
+    | status == vi_success_event_en = Nothing
+    | status == vi_success_event_dis = Nothing
+    | status == vi_success_queue_empty = Nothing
+    | status == vi_success_term_char = Nothing
+    | status == vi_success_max_cnt = Nothing
+    | status == vi_success_dev_npresent = Nothing
+    | status == vi_success_trig_mapped = Nothing
+    | status == vi_success_queue_nempty = Nothing
+    | status == vi_success_nchain = Nothing
+    | status == vi_success_nested_shared = Nothing
+    | status == vi_success_nested_exclusive = Nothing
+    | status == vi_success_sync = Nothing
+    | status == vi_warn_queue_overflow = Nothing
+    | status == vi_warn_config_nloaded = Nothing
+    | status == vi_warn_null_object = Nothing
+    | status == vi_warn_nsup_attr_state = Nothing
+    | status == vi_warn_unknown_status = Nothing
+    | status == vi_warn_nsup_buf = Nothing
+    | status == vi_warn_ext_func_nimpl = Nothing
+    | status == vi_error_system_error = Just (ViErrorSystemError message)
+    | status == vi_error_inv_object = Just (ViErrorInvalidObject message)
+    | status == vi_error_rsrc_locked = Just (ViErrorResourceLocked message)
+    | status == vi_error_inv_expr = Just (ViErrorInvalidExpression message)
+    | status == vi_error_rsrc_nfound = Just (ViErrorResourceNotFound message)
+    | status == vi_error_inv_rsrc_name = Just (ViErrorInvalidResourceName message)
+    | status == vi_error_inv_acc_mode = Just (ViErrorInvalidAccessMode message)
+    | status == vi_error_tmo = Just (ViErrorTMO message)
+    | status == vi_error_closing_failed = Just (ViErrorClosingFailed message)
+    | status == vi_error_inv_degree = Just (ViErrorInvalidDegree message)
+    | status == vi_error_inv_job_id = Just (ViErrorJobID message)
+    | status == vi_error_nsup_attr = Just (ViErrorNotSupportedAttribute message)
+    | status == vi_error_nsup_attr_state = Just (ViErrorNotSupportedAttributeState message)
+    | status == vi_error_attr_readonly = Just (ViErrorAttributeReadOnly message)
+    | status == vi_error_inv_lock_type = Just (ViErrorInvalidLockType message)
+    | status == vi_error_inv_access_key = Just (ViErrorInvalidAccessKey message)
+    | status == vi_error_inv_event = Just (ViErrorInvalidEvent message)
+    | status == vi_error_inv_mech = Just (ViErrorInvalidMech message)
+    | status == vi_error_hndlr_ninstalled = Just (ViErrorHandlerNotInstalled message)
+    | status == vi_error_inv_hndlr_ref = Just (ViErrorInvalidHandlerReference message)
+    | status == vi_error_inv_context = Just (ViErrorInvalidContext message)
+    | status == vi_error_queue_overflow = Just (ViErrorQueueOverflow message)
+    | status == vi_error_nenabled = Just (ViErrorNotEnabled message)
+    | status == vi_error_abort = Just (ViErrorAbort message)
+    | status == vi_error_raw_wr_prot_viol = Just (ViErrorRawWriteProtectionViolation message)
+    | status == vi_error_raw_rd_prot_viol = Just (ViErrorRawReadProtectionViolation message)
+    | status == vi_error_outp_prot_viol = Just (ViErrorOutPointerProtectionViolation message)
+    | status == vi_error_inp_prot_viol = Just (ViErrorInPointerProtectionViolation message)
+    | status == vi_error_berr = Just (ViErrorBErr message)
+    | status == vi_error_in_progress = Just (ViErrorInProgress message)
+    | status == vi_error_inv_setup = Just (ViErrorInvalidSetup message)
+    | status == vi_error_queue_error = Just (ViErrorQueueError message)
+    | status == vi_error_alloc = Just (ViErrorAlloc message)
+    | status == vi_error_inv_mask = Just (ViErrorInvalidMask message)
+    | status == vi_error_io = Just (ViErrorIO message)
+    | status == vi_error_inv_fmt = Just (ViErrorInvalidFormat message)
+    | status == vi_error_nsup_fmt = Just (ViErrorNotSupportedFormat message)
+    | status == vi_error_line_in_use = Just (ViErrorLineInUse message)
+    | status == vi_error_line_nreserved = Just (ViErrorLineNotReserved message)
+    | status == vi_error_nsup_mode = Just (ViErrorNotSupportedMode message)
+    | status == vi_error_srq_noccurred = Just (ViErrorSRQNotOccurred message)
+    | status == vi_error_inv_space = Just (ViErrorInvalidSpace message)
+    | status == vi_error_inv_offset = Just (ViErrorInvalidOffset message)
+    | status == vi_error_inv_width = Just (ViErrorInvalidWidth message)
+    | status == vi_error_nsup_offset = Just (ViErrorNotSupportedOffset message)
+    | status == vi_error_nsup_var_width = Just (ViErrorNotSupportedVarWidth message)
+    | status == vi_error_window_nmapped = Just (ViErrorWindowNotMapped message)
+    | status == vi_error_resp_pending = Just (ViErrorResponsePending message)
+    | status == vi_error_nlisteners = Just (ViErrorNListeners message)
+    | status == vi_error_ncic = Just (ViErrorNCIC message)
+    | status == vi_error_nsys_cntlr = Just (ViErrorNSYSController message)
+    | status == vi_error_nsup_oper = Just (ViErrorNotSupportedOperation message)
+    | status == vi_error_intr_pending = Just (ViErrorIntrPending message)
+    | status == vi_error_asrl_parity = Just (ViErrorASRLParity message)
+    | status == vi_error_asrl_framing = Just (ViErrorASRLFraming message)
+    | status == vi_error_asrl_overrun = Just (ViErrorASRLOverrun message)
+    | status == vi_error_trig_nmapped = Just (ViErrorTriggerNotMapped message)
+    | status == vi_error_nsup_align_offset = Just (ViErrorNotSupportedAlignOffset message)
+    | status == vi_error_user_buf = Just (ViErrorUserBuffer message)
+    | status == vi_error_rsrc_busy = Just (ViErrorResourceBusy message)
+    | status == vi_error_nsup_width = Just (ViErrorNotSupportedWidth message)
+    | status == vi_error_inv_parameter = Just (ViErrorInvalidParameter message)
+    | status == vi_error_inv_prot = Just (ViErrorInvalidProtection message)
+    | status == vi_error_inv_size = Just (ViErrorInvalidSize message)
+    | status == vi_error_window_mapped = Just (ViErrorWindowMapped message)
+    | status == vi_error_nimpl_oper = Just (ViErrorNotImplementedOperation message)
+    | status == vi_error_inv_length = Just (ViErrorInvalidLength message)
+    | status == vi_error_inv_mode = Just (ViErrorInvalidMode message)
+    | status == vi_error_sesn_nlocked = Just (ViErrorSessionNotLocked message)
+    | status == vi_error_mem_nshared = Just (ViErrorMemoryNotShared message)
+    | status == vi_error_library_nfound = Just (ViErrorLibraryNotFound message)
+    | status == vi_error_nsup_intr = Just (ViErrorNotSupportedIntr message)
+    | status == vi_error_inv_line = Just (ViErrorInvalidLine message)
+    | status == vi_error_file_access = Just (ViErrorFileAccess message)
+    | status == vi_error_file_io = Just (ViErrorFileIO message)
+    | status == vi_error_nsup_line = Just (ViErrorNotSupportedLine message)
+    | status == vi_error_nsup_mech = Just (ViErrorNotSupportedMech message)
+    | status == vi_error_intf_num_nconfig = Just (ViErrorIntfNumNConfig message)
+    | status == vi_error_conn_lost = Just (ViErrorConnectionLost message)
+    | status == vi_error_machine_navail = Just (ViErrorMachineNotAvailable message)
+    | status == vi_error_npermission = Just (ViErrorNoPermission message)
+
+statusToError status message = Just (ViError message)
 
 message name status description = (name ++ " Error: " ++ (show status) ++ description)
 
@@ -138,19 +319,13 @@ description session status = allocaBytes 256 (\buffer -> do
     then peekCString buffer
     else return "Could not get description (viStatusDesc)")
 
-checkDetails session status value name = if (status == 0x0)
-    then return value 
-    else do
-        -- TODO Check if status is in `success` list
-        desc <- description session status
-        throwIO (userError (message name status desc))
+checkDetails session status value name = case statusToError status (message name status "") of
+        Just e -> do
+            details <- description session status
+            let msg = message name status details
+            throwIO (fromJust (statusToError status msg))
+        _ -> return value
 
-check status value name = if (status == 0x0)
-    then return value 
-    else throwIO (userError (message name status ""))
-
-_check status value name = if (status == vi_success)
-    then return value 
-    else if any (status ==) success 
-        then return value
-        else throwIO (userError (message name status ""))
+check status value name = case (statusToError status (message name status "")) of
+    Just e -> throwIO e 
+    _ -> return value
