@@ -1,13 +1,12 @@
 {-# LANGUAGE BinaryLiterals #-} -- Enable Hex / Octal / Binary literals
 
-module Visa.Status (check, checkDetails, ViError, statusToError) where
+module Visa.Status (check, checkDetails, ViError(..)) where
 
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
 
 import Data.Maybe
-import Data.Typeable (Typeable)
 import Control.Exception (throwIO, Exception)
 
 import Visa.Dll.Visa
@@ -320,11 +319,11 @@ description session status = allocaBytes 256 (\buffer -> do
     else return "Could not get description (viStatusDesc)")
 
 checkDetails session status value name = case statusToError status (message name status "") of
-        Just e -> do
-            details <- description session status
-            let msg = message name status details
-            throwIO (fromJust (statusToError status msg))
-        _ -> return value
+    Just e -> do
+        details <- description session status
+        let msg = message name status details
+        throwIO (fromJust (statusToError status msg))
+    _ -> return value
 
 check status value name = case (statusToError status (message name status "")) of
     Just e -> throwIO e 

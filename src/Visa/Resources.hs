@@ -9,10 +9,10 @@ import qualified Data.ByteString.Char8 as BC
 
 import Data.Foldable (foldrM)
 
+import Control.Exception (bracket)
+
 import Visa.Status
 import Visa.Dll.Visa
-
--- TODO withSession + bracket
 
 vi_char_buffer_size :: Int
 vi_char_buffer_size = 256 -- bytes
@@ -23,13 +23,38 @@ _defaultSession f name = alloca (\session -> do
     value <- peek session
     checkDetails value error value name)
 
+-- Open the Default Resource Manager Session
+--
+-- The session should be closed using `close` one the session is complete
+--
+-- Example:
+-- > s <- defaultSession
+-- > devices <- find s "?*::INSTR"
+-- > close s
 defaultSession :: IO (ViSession)
 defaultSession = _defaultSession viOpenDefaultRM "viOpenDefaultRM"
 
+-- Open the Default Session and automatically close when complete
+--
+-- Example:
+--
+-- with (\s -> do
+--     devices <- find s "?*::INSTR"
+--     putStrLn (unlines devices)
+-- )
+withSession :: (ViSession -> IO b) -> IO b
+withSession = bracket defaultSession (\s -> close s) 
+
+_close :: (ViObject -> IO (ViStatus)) -> String -> ViObject -> IO ()
+_close f msg obj = do
+    error <- f obj
+    check error () msg
+
+-- Close the opened object.
+--
+-- This object can be a ViSession, ViFindList, or another thing. 
 close :: ViObject -> IO ()
-close obj = do
-    error <- viClose obj 
-    check error () "viClose"
+close = _close viClose "viClose"
 
 -- Find all attached devices based on the query, and return a list
 -- 
@@ -39,23 +64,29 @@ close obj = do
 --
 -- Returns:
 --   List of connected devices (as a list of strings)
+--
+-- Example:
+-- 
+-- withSession (\s -> do 
+--   devices <- find s "?*::INSTR"
+--   putStrLn (unlines devices)
+--   )
 find :: ViSession -> String -> IO [String]
-find session query = do
-    (find_session, description, connected) <- findResource session query
-    if connected < 1
-    then do
-        close find_session
-        return []
-    else do
-        if connected == 1
-        then do 
-            close find_session
-            return [description]
-        else do -- > 1
-            others <- _find find_session (connected - 1)
-            close find_session
-            return ([description] ++ others)
+find session query = bracket 
+    (findResource session query) 
+    (\(s, d, c) -> close s) 
+    (\(find_session, description, connected) -> do
+        if connected < 1
+        then return []
+        else do
+            if connected == 1
+            then return [description]
+            else do -- > 1
+                others <- _find find_session (connected - 1)
+                return ([description] ++ others)
+    )
 
+-- Used by `find` to get the number of connected devices
 findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
 findResource session query = withCString query (\c_query -> 
     allocaBytes vi_char_buffer_size (\description -> 
@@ -68,14 +99,14 @@ findResource session query = withCString query (\c_query ->
                 checkDetails session error (find_session, desc, total) "viFindRsrc"
                 ))))
 
+-- Used by `find` to get the next connected device
 findNext :: ViFindList -> IO (String)
 findNext find_session = allocaBytes vi_char_buffer_size (\description -> do
     error <- viFindNext find_session description
     desc <- peekCString description
-    -- Check the error 
     checkDetails find_session error desc "viFindNext")
             
--- Find the remainind devices using `findNext`
+-- Find the remaining devices using `findNext`
 _find fs r = foldrM x [] [1..r]
     where x _ a = do
             desc <- findNext fs
@@ -138,6 +169,9 @@ data AccessMode = NO_LOCK
 
 -- Open the specified Resource
 --
+-- Resources need to be closed using `close` if explicitly opened using this
+-- function
+--
 -- Args:
 --   session -> Session from `defaultSession`
 --   name -> resource name from `find`
@@ -146,6 +180,16 @@ data AccessMode = NO_LOCK
 --
 -- Returns:
 --   Resource Session
+--
+-- Example:
+-- 
+-- withSession (\s -> do
+--   devices <- find s "?*::INSTR"
+--   resource <- openResource s (head devices) NO_LOCK 2000
+--   response <- query resource "*IDN?"
+--   putStrLn response
+--   close resource
+-- )
 openResource :: ViSession -> String -> AccessMode -> Integer -> IO (ViSession)
 openResource session name access timeout = withCString name (\c_name -> 
     alloca (\c_resource -> do
@@ -157,6 +201,9 @@ openResource session name access timeout = withCString name (\c_name ->
 
 -- Open the specified Resource with Access Mode NO_LOCK
 --
+-- Resources need to be closed using `close` if explicitly opened using this
+-- function
+--
 -- This is a version of `openResource` just using the default access mode
 --
 -- Args:
@@ -166,8 +213,31 @@ openResource session name access timeout = withCString name (\c_name ->
 --
 -- Returns:
 --   Resource Session
+--
+-- withSession (\s -> do
+--   devices <- find s "?*::INSTR"
+--   resource <- open s (head devices) 2000
+--   response <- query resource "*IDN?"
+--   putStrLn response
+--   close resource
+-- )
 open :: ViSession -> String -> Integer -> IO (ViSession)
 open session name timeout = openResource session name NO_LOCK timeout
+
+-- Open the specified Resource with the provided device string
+--
+-- Example:
+-- withSession (\s -> do
+--   devices <- find s "?*::INSTR"
+--   withResource s (head devices) 2000 (\resource -> do
+--     response <- query "*IDN?"
+--     putStrLn response
+--   )
+-- )
+withResource :: ViSession -> String -> Integer -> (ViSession -> IO (b)) -> IO b
+withResource session device_name timeout = bracket
+    (open session device_name timeout)
+    (\s -> close s)
 
 success_max_count_read :: ViStatus
 success_max_count_read = 0x3FFF0006
@@ -254,13 +324,30 @@ write = writeString
 
 -- Write a message to the Visa Resource, and read the response
 --
+-- Uses: `writeString` and `readString`
+--
 -- Args:
 --   resource -> Opened resource session (from `open`)
 --   message -> Message to send
 --
 -- Returns:
 --   Response 
+--
+-- Example:
+-- withSession (\s -> do
+--   devices <- find s "?*::INSTR"
+--   withResource s (head devices) 2000 (\resource -> do
+--     response <- query "*IDN?"
+--     putStrLn response
+--   )
+-- )
 query :: ViSession -> String -> IO (String)
 query resource message = do
     writeString resource message
     readString resource
+
+-- Write a message to the Visa Resource and read the response (but in Bytes)
+queryBytes :: ViSession -> B.ByteString -> IO (B.ByteString)
+queryBytes resource msg = do
+    writeBytes resource msg
+    readBytes resource 2048
