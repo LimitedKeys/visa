@@ -17,6 +17,7 @@ import Visa.Resources
 import Visa.Status
 import Visa.Dll.Visa
 
+
 -- Using the specified value, create a "session" and return the "status"
 --
 -- A non-zero status is an error to most APIs
@@ -61,9 +62,38 @@ test_close_error = do
         Left ex -> pure ()
         Right value -> throwIO (userError ("Expected an exception"))
 
+mock_findResource :: ViStatus -> ViObject -> String -> Int -> (FindResourceFunction)
+mock_findResource status obj desc c _ _ find_list count description = do
+    poke find_list obj
+    poke count (fromIntegral c)
+
+    let poker :: (Char, Int) -> IO ()
+        poker (c, o) = pokeElemOff description o (castCharToCChar c)
+
+    mapM_ poker (zip desc [0..])
+    return status
+
+test_find_resource_ok :: IO () 
+test_find_resource_ok = do
+    let mock = mock_findResource 0 123 "Test" 1
+    (find_session, desc, total) <- _findResource mock "mock_FindResource" 0 ""
+    
+    if find_session == 123 
+    then pure ()
+    else throwIO (userError ("Expected find session to be 123"))
+
+    if desc == "Test"
+    then pure () 
+    else throwIO (userError ("Expected description to be 'Test'"))
+
+    if total == 1
+    then pure () 
+    else throwIO (userError ("Expected count to be 1"))
+
 testSession_run :: IO ()
 testSession_run = do
     test_create_default_session_ok
     test_create_default_session_error
     test_close_ok
     test_close_error
+    test_find_resource_ok

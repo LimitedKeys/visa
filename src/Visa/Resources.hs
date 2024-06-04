@@ -86,25 +86,39 @@ find session query = bracket
                 return ([description] ++ others)
     )
 
--- Used by `find` to get the number of connected devices
 findResource :: ViSession -> String -> IO (ViFindList, String, Integer)
-findResource session query = withCString query (\c_query -> 
+findResource = _findResource viFindRsrc "viFindRsrc"
+
+-- Type for the viFindRsrc function
+type FindResourceFunction = (ViSession -> ViConstString -> Ptr (ViFindList) -> Ptr (ViUInt32) -> ViChar -> IO (ViStatus)) 
+
+-- Used by `find` to get the number of connected devices
+_findResource :: FindResourceFunction -> String 
+                 -> ViSession 
+                 -> String 
+                 -> IO (ViFindList, String, Integer)
+_findResource vi msg session query = withCString query (\c_query -> 
     allocaBytes vi_char_buffer_size (\description -> 
         alloca (\find_list -> 
             alloca (\count -> do
-                error <- viFindRsrc session c_query find_list count description
+                error <- vi session c_query find_list count description
                 total <- fmap toInteger (peek count)
                 find_session <- peek find_list
                 desc <- peekCString description
-                checkDetails session error (find_session, desc, total) "viFindRsrc"
+                checkDetails session error (find_session, desc, total) msg 
                 ))))
+
+type FindNextFunction = ViFindList -> ViChar -> IO (ViStatus)
+
+_findNext :: FindNextFunction -> String -> ViFindList -> IO (String)
+_findNext vi msg find_session = allocaBytes vi_char_buffer_size (\description -> do
+    error <- vi find_session description
+    desc <- peekCString description
+    checkDetails find_session error desc msg)
 
 -- Used by `find` to get the next connected device
 findNext :: ViFindList -> IO (String)
-findNext find_session = allocaBytes vi_char_buffer_size (\description -> do
-    error <- viFindNext find_session description
-    desc <- peekCString description
-    checkDetails find_session error desc "viFindNext")
+findNext = _findNext viFindNext "viFindNext"
             
 -- Find the remaining devices using `findNext`
 _find fs r = foldrM x [] [1..r]
