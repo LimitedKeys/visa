@@ -90,6 +90,17 @@ test_find_resource_ok = do
     then pure () 
     else throwIO (userError ("Expected count to be 1"))
 
+-- TODO from Visa/Resources
+-- FindNext
+-- ParseResource
+-- Open
+-- Read / Write
+
+-- Others
+-- check
+-- checkDetails
+-- Error stuffs
+
 testSession_run :: IO ()
 testSession_run = do
     test_create_default_session_ok
